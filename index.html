@@ -248,7 +248,8 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, orderBy, serverTimestamp, limit, getDoc } 
+        // THÊM updateDoc VÀ doc
+        import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, orderBy, serverTimestamp, limit, getDoc, updateDoc } 
                from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -271,6 +272,9 @@
             db = getFirestore(app);
         } catch (error) { console.error(error); }
 
+        // --- BIẾN TOÀN CỤC ---
+        let editingNoteId = null; // Biến theo dõi ID của ghi chú đang được chỉnh sửa
+
         // UI Elements
         const globalLoading = document.getElementById('globalLoading');
         const spinner = document.getElementById('spinner');
@@ -279,7 +283,7 @@
         const loginBtn = document.getElementById('loginBtn');
         const loginError = document.getElementById('loginError');
         const logoutBtn = document.getElementById('logoutBtn');
-        const rememberMe = document.getElementById('rememberMe'); // Nút checkbox nhớ đăng nhập
+        const rememberMe = document.getElementById('rememberMe'); 
 
         const creatorView = document.getElementById('creatorView');
         const readerView = document.getElementById('readerView');
@@ -299,7 +303,7 @@
 
         const COLLECTION_NAME = "daily_notes";
         const DRAFT_KEY = 'my_markdown_draft';
-        const SESSION_KEY = 'my_markdown_auth_token'; // Key lưu trạng thái đã đăng nhập
+        const SESSION_KEY = 'my_markdown_auth_token'; 
         
         let currentLimit = 10;
         let unsubscribe = null;
@@ -307,18 +311,16 @@
 
         marked.use({ breaks: true, gfm: true });
 
-        // --- CẬP NHẬT GỢI Ý TÌM KIẾM ---
+        // --- HÀM 1: CẬP NHẬT GỢI Ý TÌM KIẾM ---
         function updateSearchSuggestions(notes) {
             const datalist = document.getElementById('searchSuggestions');
             if (!datalist) return;
             
-            datalist.innerHTML = ''; // Xóa gợi ý cũ
+            datalist.innerHTML = '';
             
-            // Lấy 20 gợi ý đầu tiên từ tiêu đề hoặc dòng đầu của ghi chú
             notes.slice(0, 20).forEach(note => {
                 if (!note.content) return;
                 
-                // Lấy dòng đầu tiên làm gợi ý, bỏ các ký tự Markdown (#, *)
                 let suggestion = note.content.split('\n')[0].replace(/[#*`]/g, '').trim();
                 
                 if (suggestion) {
@@ -329,7 +331,7 @@
             });
         }
 
-        // --- HÀM KHÔI PHỤC BẢN NHÁP ---
+        // --- HÀM 2: KHÔI PHỤC BẢN NHÁP ---
         function loadDraft() {
             const savedDraft = localStorage.getItem(DRAFT_KEY);
             if (savedDraft) {
@@ -339,17 +341,54 @@
                 enhanceContent(livePreviewContent);
             }
         }
+        
+        // --- HÀM 3: ĐẶT LẠI TRẠNG THÁI EDITOR ---
+        function resetEditor() {
+            editingNoteId = null;
+            noteInput.value = '';
+            
+            // Đặt lại nút Đăng bài
+            addBtn.textContent = "Đăng bài viết";
+            addBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
+            addBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
 
-        // --- XỬ LÝ ĐĂNG NHẬP / BẢO MẬT (Đã cập nhật MD5 & Cookie/LocalStorage) ---
+            // Xóa nháp
+            localStorage.removeItem(DRAFT_KEY);
+            
+            // Xóa preview
+            livePreviewContent.innerHTML = '<p class="text-gray-400 italic text-center mt-10">Bản xem trước sẽ hiện tại đây...</p>';
+            
+            // Đặt lại tìm kiếm
+            searchInput.value = '';
+            filterAndRender('');
+        }
+        
+        // --- HÀM 4: VÀO CHẾ ĐỘ CHỈNH SỬA (Gọi từ onclick) ---
+        window.enterEditMode = (id) => {
+            const noteToEdit = allNotesData.find(note => note.id === id);
+            if (!noteToEdit) return;
+            
+            // 1. Lưu ID và đổ dữ liệu
+            editingNoteId = id;
+            noteInput.value = noteToEdit.content;
+            
+            // 2. Thay đổi nút thành CẬP NHẬT
+            addBtn.textContent = "Cập nhật ghi chú";
+            addBtn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+            addBtn.classList.add('bg-green-600', 'hover:bg-green-700');
+            
+            // 3. Tự động cuộn lên đầu và kích hoạt preview/auto save
+            creatorView.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            noteInput.dispatchEvent(new Event('input')); // Kích hoạt auto-save và preview
+        }
+        
+        // --- XỬ LÝ ĐĂNG NHẬP / BẢO MẬT ---
         function checkAccess() {
-            // Kiểm tra trong LocalStorage (Lưu lâu dài) hoặc SessionStorage (Lưu tạm)
-            // Nếu tìm thấy mã hash đúng trong storage -> Cho vào luôn
             const storedHash = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
             
             if (storedHash === ACCESS_PASSWORD_HASH) {
                 showCreatorView();
             } else {
-                // Chưa đăng nhập -> Hiện form login
                 spinner.classList.add('hidden');
                 loginForm.classList.remove('hidden');
             }
@@ -357,17 +396,12 @@
 
         loginBtn.addEventListener('click', () => {
             const input = passwordInput.value;
-            // 1. Mã hóa input người dùng thành MD5
             const inputHash = CryptoJS.MD5(input).toString();
 
-            // 2. So sánh 2 mã hash
             if (inputHash === ACCESS_PASSWORD_HASH) {
-                // 3. Nếu đúng -> Lưu trạng thái
                 if (rememberMe.checked) {
-                    // Nếu chọn "Ghi nhớ" -> Lưu vào LocalStorage (giống Cookie lâu dài)
                     localStorage.setItem(SESSION_KEY, inputHash);
                 } else {
-                    // Nếu không -> Lưu vào SessionStorage (Tắt tab là mất)
                     sessionStorage.setItem(SESSION_KEY, inputHash);
                 }
                 
@@ -377,13 +411,11 @@
             }
         });
 
-        // Hỗ trợ nhấn Enter để login
         passwordInput.addEventListener('keyup', (e) => {
             if (e.key === 'Enter') loginBtn.click();
         });
 
         logoutBtn.addEventListener('click', () => {
-            // Xóa hết token ở cả 2 nơi
             localStorage.removeItem(SESSION_KEY);
             sessionStorage.removeItem(SESSION_KEY);
             window.location.reload();
@@ -508,10 +540,8 @@
             const sharedId = urlParams.get('id');
 
             if (sharedId) {
-                // CHẾ ĐỘ READER: Tải nội dung công khai
                 await loadSingleNote(sharedId);
             } else {
-                // CHẾ ĐỘ CREATOR: Kiểm tra mật khẩu
                 checkAccess();
             }
         }
@@ -534,12 +564,11 @@
                         document.getElementById('readerDate').textContent = "Đăng lúc: " + date.toLocaleString('vi-VN');
                     }
                     
-                    // Ẩn spinner loading
                     globalLoading.classList.add('hidden');
                     readerView.classList.remove('hidden');
                 } else {
                     alert("Bài viết không tồn tại!");
-                    window.location.href = "index.html"; // Quay về trang chủ (sẽ bị chặn bởi login)
+                    window.location.href = "index.html"; 
                 }
             } catch (error) {
                 console.error("Lỗi:", error);
@@ -572,7 +601,6 @@
                     allNotesData.push(data);
                 });
                 
-                // CẬP NHẬT GỢI Ý TÌM KIẾM KHI CÓ DỮ LIỆU MỚI
                 updateSearchSuggestions(allNotesData);
 
                 filterAndRender(searchInput.value);
@@ -616,10 +644,19 @@
                     <div class="flex justify-between items-center mt-6 pt-4 border-t border-gray-50">
                         <span class="text-xs text-gray-400">${timeString}</span>
                         <div class="flex gap-2">
+                            <!-- Nút SỬA (Mới) -->
+                            <button onclick="enterEditMode('${id}')" class="flex items-center gap-1 text-gray-500 hover:text-green-600 hover:bg-green-50 px-3 py-1.5 rounded-lg transition text-sm font-medium">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                                Sửa
+                            </button>
+                            
+                            <!-- Nút Chia sẻ -->
                             <button onclick="shareNote('${id}')" class="flex items-center gap-1 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition text-sm font-medium">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
                                 Chia sẻ
                             </button>
+                            
+                            <!-- Nút Xóa -->
                             <button class="delete-btn text-gray-400 hover:text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg transition text-sm font-medium" data-id="${id}">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                             </button>
@@ -639,25 +676,40 @@
             const content = noteInput.value.trim();
             if (!content) return;
             const btn = document.getElementById('addBtn');
-            btn.textContent = "Đang đăng...";
+            
+            btn.textContent = editingNoteId ? "Đang cập nhật..." : "Đang đăng...";
             btn.disabled = true;
 
             try {
-                await addDoc(collection(db, COLLECTION_NAME), {
-                    content: content,
-                    createdAt: serverTimestamp()
-                });
+                if (editingNoteId) {
+                    // CHỨC NĂNG CẬP NHẬT (UPDATE)
+                    const docRef = doc(db, COLLECTION_NAME, editingNoteId);
+                    await updateDoc(docRef, {
+                        content: content,
+                        updatedAt: serverTimestamp() // Thêm thời gian cập nhật
+                    });
+                    alert("Đã cập nhật ghi chú thành công!");
+                } else {
+                    // CHỨC NĂNG THÊM MỚI (ADD)
+                    await addDoc(collection(db, COLLECTION_NAME), {
+                        content: content,
+                        createdAt: serverTimestamp()
+                    });
+                }
                 
-                localStorage.removeItem(DRAFT_KEY);
-                
-                noteInput.value = '';
-                livePreviewContent.innerHTML = '<p class="text-gray-400 italic text-center mt-10">Bản xem trước sẽ hiện tại đây...</p>';
+                resetEditor(); // Reset UI sau khi thành công
+
+                // Load lại danh sách
                 currentLimit = 10;
                 loadNotes(currentLimit);
+
                 if(window.innerWidth < 768) switchTab('write'); 
-            } catch (error) { alert("Lỗi lưu: " + error.message); }
+            } catch (error) { 
+                console.error("Lỗi:", error);
+                alert("Lỗi khi lưu/cập nhật: " + error.message); 
+            }
             finally {
-                btn.textContent = "Đăng bài viết";
+                btn.textContent = editingNoteId ? "Cập nhật ghi chú" : "Đăng bài viết";
                 btn.disabled = false;
             }
         });
