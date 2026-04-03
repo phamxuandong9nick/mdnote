@@ -1,3 +1,14 @@
+<!--
+* Tên file: index.html (hoặc mdnote.html)
+* Vị trí lưu: Thư mục gốc của project (Root directory)
+* Chức năng cơ bản:
+* - Quản lý ghi chú cá nhân dạng Markdown (Thêm, Sửa, Xóa).
+* - Cải tiến: Tách biệt Tiêu đề và Nội dung.
+* - Tối ưu hóa (Lazy Load UI): Danh sách chỉ hiển thị tiêu đề để tải trang siêu nhanh, không render HTML khi chưa cần thiết.
+* - Hỗ trợ copy toàn bộ nội dung ngay lập tức chỉ với 1 click.
+* - Chia sẻ ghi chú qua link (Reader mode).
+* - Bảo vệ truy cập bằng mật khẩu (MD5).
+-->
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -51,16 +62,7 @@
         .markdown-content img { max-width: 100%; border-radius: 0.5rem; margin-top: 1rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
         .markdown-content p { margin-bottom: 0.8em; line-height: 1.6; }
 
-        /* --- UI UTILITIES --- */
-        .content-collapsed {
-            max-height: 120px;
-            overflow: hidden;
-            position: relative;
-            mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
-            -webkit-mask-image: linear-gradient(to bottom, black 60%, transparent 100%);
-        }
-
-        /* Nút Copy Code */
+        /* Nút Copy Code trong bài viết */
         .copy-code-btn {
             position: absolute;
             top: 0.5rem;
@@ -116,6 +118,13 @@
             margin-left: auto;
             margin-right: auto;
         }
+        
+        .line-clamp-1 {
+            display: -webkit-box;
+            -webkit-line-clamp: 1;
+            -webkit-box-orient: vertical;  
+            overflow: hidden;
+        }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
@@ -124,7 +133,7 @@
     <div id="globalLoading" class="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center">
         <div id="spinner" class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
         
-        <!-- Login Form (Ẩn mặc định) -->
+        <!-- Login Form -->
         <div id="loginForm" class="hidden bg-white p-8 rounded-xl shadow-lg border border-gray-100 max-w-sm w-full mx-4 text-center">
             <h2 class="text-xl font-bold text-gray-800 mb-2">Truy cập Editor</h2>
             <p class="text-sm text-gray-500 mb-6">Nhập mật khẩu để tiếp tục.</p>
@@ -153,21 +162,17 @@
     <!-- ===== GIAO DIỆN 1: EDITOR (Dành cho người tạo - CẦN MẬT KHẨU) ===== -->
     <div id="creatorView" class="w-full max-w-[297mm] mx-auto p-4 hidden"> 
         
-        <!-- Tìm kiếm (Đã nâng cấp giao diện & thêm Datalist) -->
+        <!-- Tìm kiếm -->
         <div class="max-w-[210mm] mx-auto relative mb-8"> 
             <div class="relative group">
-                <!-- Hiệu ứng Glow nền sau -->
                 <div class="absolute -inset-0.5 bg-gradient-to-r from-indigo-300 to-purple-300 rounded-full opacity-50 group-hover:opacity-100 transition duration-200 blur-sm"></div>
-                
-                <!-- Input chính -->
                 <div class="relative flex items-center bg-white rounded-full shadow-sm">
                     <svg class="w-5 h-5 text-gray-500 ml-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                     <input type="text" id="searchInput" list="searchSuggestions"
                         class="w-full p-3.5 pl-3 rounded-full focus:outline-none text-gray-700 bg-transparent placeholder-gray-400 font-medium"
-                        placeholder="Gõ từ khóa để tìm (ví dụ: 'Idea', 'Code', 'Dự án')...">
+                        placeholder="Gõ tiêu đề hoặc từ khóa để tìm (ví dụ: 'Idea', 'Code')...">
                 </div>
             </div>
-            <!-- Danh sách gợi ý tự động -->
             <datalist id="searchSuggestions"></datalist>
         </div>
 
@@ -186,24 +191,33 @@
 
             <!-- Toolbar / Header Desktop -->
             <div class="hidden md:flex justify-between items-center px-4 py-2 bg-gray-50 border-b border-gray-200">
-                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Markdown Input</span>
-                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Live Preview</span>
+                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Trình soạn thảo Markdown</span>
+                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Xem trước trực tiếp</span>
             </div>
 
             <!-- Split Layout -->
             <div class="flex flex-col md:flex-row h-[600px]"> 
                 
                 <!-- Cột Trái: Input -->
-                <div id="editorPane" class="w-full md:w-1/2 h-full flex flex-col border-b md:border-b-0 md:border-r border-gray-200">
+                <div id="editorPane" class="w-full md:w-1/2 h-full flex flex-col border-b md:border-b-0 md:border-r border-gray-200 bg-white">
+                    <!-- Ô nhập Tiêu đề mới thêm -->
+                    <input type="text" id="titleInput" 
+                        class="w-full px-6 py-4 focus:outline-none font-bold text-lg text-indigo-900 border-b border-gray-100 bg-gray-50 placeholder-gray-400"
+                        placeholder="Nhập tiêu đề bài viết...">
+                        
+                    <!-- Ô nhập Nội dung -->
                     <textarea id="noteInput" 
                         class="flex-1 w-full p-6 focus:outline-none resize-none font-mono text-sm leading-relaxed text-gray-800"
-                        placeholder="# Tiêu đề bài viết...&#10;&#10;Viết nội dung Markdown tại đây...&#10;- Hỗ trợ danh sách&#10;- **In đậm**&#10;- `Code block`"></textarea>
+                        placeholder="Viết nội dung Markdown tại đây...&#10;- Hỗ trợ danh sách&#10;- **In đậm**&#10;- `Code block`"></textarea>
                 </div>
 
                 <!-- Cột Phải: Preview -->
                 <div id="previewPane" class="w-full md:w-1/2 h-full hidden md:block overflow-y-auto bg-white">
-                    <div id="livePreviewContent" class="markdown-content p-6 text-sm">
-                        <p class="text-gray-400 italic text-center mt-10">Bản xem trước sẽ hiện tại đây...</p>
+                    <div class="p-6">
+                        <h1 id="livePreviewTitle" class="text-2xl font-bold text-indigo-900 mb-4 pb-2 border-b border-gray-100 hidden"></h1>
+                        <div id="livePreviewContent" class="markdown-content text-sm">
+                            <p class="text-gray-400 italic text-center mt-10">Bản xem trước sẽ hiện tại đây...</p>
+                        </div>
                     </div>
                 </div>
 
@@ -221,8 +235,12 @@
 
         <!-- Danh sách bài viết -->
         <div class="max-w-[210mm] mx-auto"> 
-            <h3 class="text-lg font-bold text-gray-700 mb-4 border-l-4 border-indigo-500 pl-3">Bài viết gần đây</h3>
-            <div id="notesList" class="space-y-6"></div>
+            <div class="flex justify-between items-center mb-4 border-l-4 border-indigo-500 pl-3">
+                <h3 class="text-lg font-bold text-gray-700">Bài viết gần đây</h3>
+                <span class="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded-full">Chế độ xem siêu nhẹ</span>
+            </div>
+            
+            <div id="notesList" class="space-y-4"></div> <!-- Giảm khoảng cách giữa các notes -->
             
             <div class="mt-8 text-center">
                 <button id="loadMoreBtn" class="hidden text-gray-500 hover:text-indigo-600 font-medium text-sm border border-gray-300 rounded-full px-4 py-2 hover:border-indigo-600 transition">
@@ -237,6 +255,7 @@
         <div class="mb-6">
             <!-- Hiệu ứng trang giấy A4 -->
             <article class="bg-white p-8 md:p-10 rounded shadow-md border border-gray-200 min-h-[297mm]">
+                <h1 id="readerTitle" class="text-3xl font-bold text-indigo-900 mb-6 pb-4 border-b border-gray-100 hidden"></h1>
                 <div id="readerContent" class="markdown-content text-gray-800"></div>
                 <div class="mt-12 pt-6 border-t border-gray-100 text-center">
                     <p class="text-sm text-gray-400" id="readerDate"></p>
@@ -248,7 +267,6 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        // THÊM updateDoc VÀ doc
         import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, orderBy, serverTimestamp, limit, getDoc, updateDoc } 
                from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
@@ -262,9 +280,7 @@
         };
 
         // --- CẤU HÌNH MẬT KHẨU (MD5) ---
-        // Mã MD5 của "1234". Để đổi pass: Vào trang https://www.md5hashgenerator.com/, nhập pass mới -> copy mã hash dán vào đây.
         const ACCESS_PASSWORD_HASH = "ed871d892b75649015d9a8bc0ce17448"; 
-        // -------------------------
 
         let app, db;
         try {
@@ -273,7 +289,7 @@
         } catch (error) { console.error(error); }
 
         // --- BIẾN TOÀN CỤC ---
-        let editingNoteId = null; // Biến theo dõi ID của ghi chú đang được chỉnh sửa
+        let editingNoteId = null;
 
         // UI Elements
         const globalLoading = document.getElementById('globalLoading');
@@ -290,12 +306,15 @@
         const backToTopBtn = document.getElementById('backToTop');
         
         // Editor Elements
+        const titleInput = document.getElementById('titleInput'); // Thêm dòng này
         const noteInput = document.getElementById('noteInput');
+        const livePreviewTitle = document.getElementById('livePreviewTitle'); // Thêm dòng này
         const livePreviewContent = document.getElementById('livePreviewContent');
         const editorPane = document.getElementById('editorPane');
         const previewPane = document.getElementById('previewPane');
         const tabWrite = document.getElementById('tabWrite');
         const tabPreview = document.getElementById('tabPreview');
+        const addBtn = document.getElementById('addBtn');
         
         const notesList = document.getElementById('notesList');
         const loadMoreBtn = document.getElementById('loadMoreBtn');
@@ -303,6 +322,7 @@
 
         const COLLECTION_NAME = "daily_notes";
         const DRAFT_KEY = 'my_markdown_draft';
+        const DRAFT_TITLE_KEY = 'my_markdown_draft_title'; // Nháp cho tiêu đề
         const SESSION_KEY = 'my_markdown_auth_token'; 
         
         let currentLimit = 10;
@@ -311,18 +331,14 @@
 
         marked.use({ breaks: true, gfm: true });
 
-        // --- HÀM 1: CẬP NHẬT GỢI Ý TÌM KIẾM ---
+        // --- CẬP NHẬT GỢI Ý TÌM KIẾM ---
         function updateSearchSuggestions(notes) {
             const datalist = document.getElementById('searchSuggestions');
             if (!datalist) return;
-            
             datalist.innerHTML = '';
             
             notes.slice(0, 20).forEach(note => {
-                if (!note.content) return;
-                
-                let suggestion = note.content.split('\n')[0].replace(/[#*`]/g, '').trim();
-                
+                let suggestion = note.title ? note.title : (note.content ? note.content.split('\n')[0].replace(/[#*`]/g, '').trim() : "");
                 if (suggestion) {
                     const option = document.createElement('option');
                     option.value = suggestion;
@@ -331,73 +347,75 @@
             });
         }
 
-        // --- HÀM 2: KHÔI PHỤC BẢN NHÁP ---
+        // --- KHÔI PHỤC BẢN NHÁP ---
         function loadDraft() {
-            const savedDraft = localStorage.getItem(DRAFT_KEY);
-            if (savedDraft) {
-                noteInput.value = savedDraft;
-                const cleanHtml = DOMPurify.sanitize(marked.parse(savedDraft));
-                livePreviewContent.innerHTML = cleanHtml;
-                enhanceContent(livePreviewContent);
+            const savedDraftTitle = localStorage.getItem(DRAFT_TITLE_KEY);
+            const savedDraftContent = localStorage.getItem(DRAFT_KEY);
+            
+            if (savedDraftTitle || savedDraftContent) {
+                titleInput.value = savedDraftTitle || '';
+                noteInput.value = savedDraftContent || '';
+                updatePreview();
             }
         }
         
-        // --- HÀM 3: ĐẶT LẠI TRẠNG THÁI EDITOR ---
+        // --- ĐẶT LẠI TRẠNG THÁI EDITOR ---
         function resetEditor() {
             editingNoteId = null;
+            titleInput.value = '';
             noteInput.value = '';
             
-            // Đặt lại nút Đăng bài
             addBtn.textContent = "Đăng bài viết";
             addBtn.classList.remove('bg-green-600', 'hover:bg-green-700');
             addBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
 
-            // Xóa nháp
             localStorage.removeItem(DRAFT_KEY);
+            localStorage.removeItem(DRAFT_TITLE_KEY);
             
-            // Xóa preview
+            livePreviewTitle.classList.add('hidden');
             livePreviewContent.innerHTML = '<p class="text-gray-400 italic text-center mt-10">Bản xem trước sẽ hiện tại đây...</p>';
             
-            // Đặt lại tìm kiếm
             searchInput.value = '';
             filterAndRender('');
         }
         
-        // --- HÀM 4: VÀO CHẾ ĐỘ CHỈNH SỬA (Gọi từ onclick) ---
+        // --- VÀO CHẾ ĐỘ CHỈNH SỬA ---
         window.enterEditMode = (id) => {
             const noteToEdit = allNotesData.find(note => note.id === id);
             if (!noteToEdit) return;
             
-            // 1. Lưu ID và đổ dữ liệu
             editingNoteId = id;
-            noteInput.value = noteToEdit.content;
+            titleInput.value = noteToEdit.title || ""; // Lấy tiêu đề
+            noteInput.value = noteToEdit.content || "";
             
-            // 2. Thay đổi nút thành CẬP NHẬT
             addBtn.textContent = "Cập nhật ghi chú";
             addBtn.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
             addBtn.classList.add('bg-green-600', 'hover:bg-green-700');
             
-            // 3. Tự động cuộn lên đầu và kích hoạt preview/auto save
             creatorView.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            noteInput.dispatchEvent(new Event('input')); // Kích hoạt auto-save và preview
-            noteInput.focus();
+            updatePreview();
+            titleInput.focus();
         }
 
-        // --- HÀM 5: COPY TOÀN BỘ NỘI DUNG (MỚI) ---
+        // --- COPY NỘI DUNG NHANH (Không cần mở DOM) ---
         window.copyNoteContent = (id) => {
             const note = allNotesData.find(n => n.id === id);
-            if (note && note.content) {
-                navigator.clipboard.writeText(note.content).then(() => {
-                    // Feedback trực quan
+            // Gộp tiêu đề và nội dung để copy cho trọn vẹn
+            let textToCopy = "";
+            if (note.title) textToCopy += `# ${note.title}\n\n`;
+            if (note.content) textToCopy += note.content;
+
+            if (textToCopy) {
+                navigator.clipboard.writeText(textToCopy).then(() => {
                     const btn = document.getElementById(`copy-btn-${id}`);
                     if (btn) {
                         btn.innerHTML = `<svg class="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Đã Copy!`;
-                        btn.classList.remove('hover:text-gray-500');
-                        btn.classList.add('text-green-500');
+                        btn.classList.remove('hover:text-gray-500', 'text-gray-500');
+                        btn.classList.add('text-green-600', 'bg-green-50');
                         setTimeout(() => {
                             btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m-2-3H10"></path></svg> Copy`;
-                            btn.classList.remove('text-green-500');
-                            btn.classList.add('hover:text-gray-500');
+                            btn.classList.remove('text-green-600', 'bg-green-50');
+                            btn.classList.add('hover:text-gray-500', 'text-gray-500');
                         }, 2000);
                     }
                 }).catch(err => {
@@ -406,11 +424,42 @@
                 });
             }
         };
+
+        // --- ĐÓNG/MỞ NỘI DUNG (LAZY RENDER) ---
+        window.toggleNoteContent = (id) => {
+            const container = document.getElementById(`content-container-${id}`);
+            const contentDiv = document.getElementById(`content-${id}`);
+            const toggleBtn = document.getElementById(`toggle-btn-${id}`);
+            const toggleIcon = document.getElementById(`toggle-icon-${id}`);
+            const toggleText = document.getElementById(`toggle-text-${id}`);
+            
+            const note = allNotesData.find(n => n.id === id);
+            if (!note) return;
+
+            if (container.classList.contains('hidden')) {
+                // Nếu chưa render thì render (Chỉ parse Markdown 1 lần)
+                if (!contentDiv.innerHTML.trim()) {
+                    contentDiv.innerHTML = DOMPurify.sanitize(marked.parse(note.content || ""));
+                    enhanceContent(contentDiv);
+                }
+                
+                // Mở ra
+                container.classList.remove('hidden');
+                toggleText.textContent = "Thu gọn";
+                toggleIcon.style.transform = "rotate(180deg)";
+                toggleBtn.classList.add('bg-indigo-50', 'text-indigo-600');
+            } else {
+                // Đóng lại (giải phóng không gian màn hình, DOM vẫn giữ nhưng bị ẩn)
+                container.classList.add('hidden');
+                toggleText.textContent = "Mở xem";
+                toggleIcon.style.transform = "rotate(0deg)";
+                toggleBtn.classList.remove('bg-indigo-50', 'text-indigo-600');
+            }
+        };
         
         // --- XỬ LÝ ĐĂNG NHẬP / BẢO MẬT ---
         function checkAccess() {
             const storedHash = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY);
-            
             if (storedHash === ACCESS_PASSWORD_HASH) {
                 showCreatorView();
             } else {
@@ -429,7 +478,6 @@
                 } else {
                     sessionStorage.setItem(SESSION_KEY, inputHash);
                 }
-                
                 showCreatorView();
             } else {
                 loginError.classList.remove('hidden');
@@ -478,17 +526,32 @@
         tabPreview.addEventListener('click', () => switchTab('preview'));
 
         // --- REAL-TIME PREVIEW & AUTO SAVE ---
-        noteInput.addEventListener('input', () => {
-            const val = noteInput.value;
-            localStorage.setItem(DRAFT_KEY, val);
-            if (!val.trim()) {
+        function updatePreview() {
+            const titleVal = titleInput.value;
+            const contentVal = noteInput.value;
+            
+            localStorage.setItem(DRAFT_TITLE_KEY, titleVal);
+            localStorage.setItem(DRAFT_KEY, contentVal);
+            
+            if (titleVal.trim()) {
+                livePreviewTitle.textContent = titleVal;
+                livePreviewTitle.classList.remove('hidden');
+            } else {
+                livePreviewTitle.classList.add('hidden');
+            }
+
+            if (!contentVal.trim() && !titleVal.trim()) {
                 livePreviewContent.innerHTML = '<p class="text-gray-400 italic text-center mt-10">Bản xem trước sẽ hiện tại đây...</p>';
                 return;
             }
-            const cleanHtml = DOMPurify.sanitize(marked.parse(val));
+            
+            const cleanHtml = DOMPurify.sanitize(marked.parse(contentVal));
             livePreviewContent.innerHTML = cleanHtml;
             enhanceContent(livePreviewContent);
-        });
+        }
+
+        titleInput.addEventListener('input', updatePreview);
+        noteInput.addEventListener('input', updatePreview);
 
         // --- BACK TO TOP ---
         window.onscroll = function() {
@@ -578,8 +641,15 @@
 
                 if (docSnap.exists()) {
                     const data = docSnap.data();
-                    const cleanHtml = DOMPurify.sanitize(marked.parse(data.content || ""));
                     
+                    // Render Title
+                    if (data.title) {
+                        document.getElementById('readerTitle').textContent = data.title;
+                        document.getElementById('readerTitle').classList.remove('hidden');
+                    }
+                    
+                    // Render Content
+                    const cleanHtml = DOMPurify.sanitize(marked.parse(data.content || ""));
                     const contentContainer = document.getElementById('readerContent');
                     contentContainer.innerHTML = cleanHtml;
                     enhanceContent(contentContainer);
@@ -612,7 +682,6 @@
             );
 
             unsubscribe = onSnapshot(q, (snapshot) => {
-                notesList.innerHTML = '';
                 allNotesData = [];
 
                 if (snapshot.empty) {
@@ -627,7 +696,6 @@
                 });
                 
                 updateSearchSuggestions(allNotesData);
-
                 filterAndRender(searchInput.value);
 
                 if (snapshot.size >= limitCount) {
@@ -638,66 +706,78 @@
             });
         }
 
+        // CHỈ RENDER TIÊU ĐỀ - KHÔNG RENDER NỘI DUNG DOM
         function filterAndRender(keyword) {
             const searchTerm = keyword.toLowerCase().trim();
             notesList.innerHTML = '';
 
             const filteredNotes = allNotesData.filter(note => {
-                return !searchTerm || (note.content && note.content.toLowerCase().includes(searchTerm));
+                const titleMatch = note.title && note.title.toLowerCase().includes(searchTerm);
+                const contentMatch = note.content && note.content.toLowerCase().includes(searchTerm);
+                return !searchTerm || titleMatch || contentMatch;
             });
 
             filteredNotes.forEach(note => {
                 const id = note.id;
                 let timeString = note.createdAt ? new Date(note.createdAt.seconds * 1000).toLocaleString('vi-VN') : "...";
-                const cleanHtml = DOMPurify.sanitize(marked.parse(note.content || ""));
-
-                const isLong = (note.content && note.content.length > 300) || (note.content && note.content.split('\n').length > 5);
-                const collapseClass = isLong ? 'content-collapsed' : '';
-                const btnDisplay = isLong ? 'block' : 'hidden';
+                
+                // Fallback tiêu đề cho các ghi chú cũ
+                let displayTitle = note.title;
+                if (!displayTitle) {
+                    displayTitle = note.content ? note.content.split('\n')[0].replace(/[#*`]/g, '').trim() : "Ghi chú không tên";
+                }
 
                 const div = document.createElement('div');
-                div.className = "bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition duration-300 a4-paper"; 
+                div.className = "bg-white p-4 md:p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition duration-200 a4-paper"; 
+                
                 div.innerHTML = `
-                    <div id="content-${id}" class="markdown-content text-gray-800 break-words transition-all duration-300 ${collapseClass}">
-                        ${cleanHtml}
+                    <!-- Header: Tiêu đề và Thời gian -->
+                    <div class="flex justify-between items-start gap-4 cursor-pointer group" onclick="toggleNoteContent('${id}')">
+                        <div class="flex-1">
+                            <h4 class="font-bold text-gray-800 text-lg group-hover:text-indigo-600 transition line-clamp-1">${displayTitle}</h4>
+                            <span class="text-xs text-gray-400 mt-1 block">${timeString}</span>
+                        </div>
+                        <button id="toggle-btn-${id}" class="text-gray-400 hover:bg-indigo-50 hover:text-indigo-600 p-2 rounded-full transition focus:outline-none flex-shrink-0 flex items-center gap-1">
+                            <span id="toggle-text-${id}" class="text-xs font-medium hidden md:inline">Mở xem</span>
+                            <svg id="toggle-icon-${id}" class="w-5 h-5 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                        </button>
                     </div>
                     
-                    <button onclick="toggleNote('${id}')" id="btn-${id}" class="${btnDisplay} text-indigo-600 text-sm font-semibold mt-3 hover:bg-indigo-50 px-3 py-1 rounded transition focus:outline-none">
-                        Xem tiếp ↓
-                    </button>
-
-                    <div class="flex justify-between items-center mt-6 pt-4 border-t border-gray-50">
-                        <span class="text-xs text-gray-400">${timeString}</span>
-                        <div class="flex gap-2">
-                            
-                            <!-- Nút COPY NỘI DUNG (MỚI) -->
-                            <button id="copy-btn-${id}" onclick="copyNoteContent('${id}')" class="flex items-center gap-1 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition text-sm font-medium">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m-2-3H10"></path></svg>
-                                Copy
-                            </button>
-
-                            <!-- Nút SỬA -->
-                            <button onclick="enterEditMode('${id}')" class="flex items-center gap-1 text-gray-500 hover:text-green-600 hover:bg-green-50 px-3 py-1.5 rounded-lg transition text-sm font-medium">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                                Sửa
-                            </button>
-                            
-                            <!-- Nút Chia sẻ -->
-                            <button onclick="shareNote('${id}')" class="flex items-center gap-1 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition text-sm font-medium">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
-                                Chia sẻ
-                            </button>
-                            
-                            <!-- Nút Xóa -->
-                            <button class="delete-btn text-gray-400 hover:text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg transition text-sm font-medium" data-id="${id}">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                            </button>
+                    <!-- Container chứa nội dung (Mặc định trống và ẩn để nhẹ DOM) -->
+                    <div id="content-container-${id}" class="hidden mt-4 pt-4 border-t border-gray-100">
+                        <div id="content-${id}" class="markdown-content text-gray-800 break-words">
+                            <!-- Nội dung sẽ được inject vào đây khi click mở -->
                         </div>
+                    </div>
+
+                    <!-- Thanh công cụ -->
+                    <div class="flex flex-wrap justify-end gap-2 mt-4 pt-3 border-t border-gray-50">
+                        <!-- Nút COPY NỘI DUNG -->
+                        <button id="copy-btn-${id}" onclick="copyNoteContent('${id}')" class="flex items-center gap-1 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition text-sm font-medium">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m-2-3H10"></path></svg>
+                            Copy
+                        </button>
+
+                        <!-- Nút SỬA -->
+                        <button onclick="enterEditMode('${id}')" class="flex items-center gap-1 text-gray-500 hover:text-green-600 hover:bg-green-50 px-3 py-1.5 rounded-lg transition text-sm font-medium">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                            Sửa
+                        </button>
+                        
+                        <!-- Nút Chia sẻ -->
+                        <button onclick="shareNote('${id}')" class="flex items-center gap-1 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition text-sm font-medium">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
+                            Chia sẻ
+                        </button>
+                        
+                        <!-- Nút Xóa -->
+                        <button class="delete-btn text-gray-400 hover:text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg transition text-sm font-medium" data-id="${id}">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        </button>
                     </div>
                 `;
                 
                 div.querySelector('.delete-btn').addEventListener('click', () => deleteNote(id));
-                enhanceContent(div.querySelector('.markdown-content'));
                 notesList.appendChild(div);
             });
         }
@@ -705,32 +785,32 @@
         searchInput.addEventListener('input', (e) => filterAndRender(e.target.value));
 
         document.getElementById('addBtn').addEventListener('click', async () => {
-            const content = noteInput.value.trim();
-            if (!content) return;
-            const btn = document.getElementById('addBtn');
+            const titleVal = titleInput.value.trim();
+            const contentVal = noteInput.value.trim();
             
+            if (!contentVal && !titleVal) return;
+            
+            const btn = document.getElementById('addBtn');
             btn.textContent = editingNoteId ? "Đang cập nhật..." : "Đang đăng...";
             btn.disabled = true;
 
             try {
                 if (editingNoteId) {
-                    // CHỨC NĂNG CẬP NHẬT (UPDATE)
                     const docRef = doc(db, COLLECTION_NAME, editingNoteId);
                     await updateDoc(docRef, {
-                        content: content,
+                        title: titleVal,       // Lưu thêm trường title
+                        content: contentVal,
                         updatedAt: serverTimestamp() 
                     });
-                    alert("Đã cập nhật ghi chú thành công!");
                 } else {
-                    // CHỨC NĂNG THÊM MỚI (ADD)
                     await addDoc(collection(db, COLLECTION_NAME), {
-                        content: content,
+                        title: titleVal,       // Lưu thêm trường title
+                        content: contentVal,
                         createdAt: serverTimestamp()
                     });
                 }
                 
                 resetEditor(); 
-
                 currentLimit = 10;
                 loadNotes(currentLimit);
 
@@ -756,19 +836,6 @@
                 catch (e) { alert("Lỗi xóa"); }
             }
         }
-
-        window.toggleNote = (id) => {
-            const content = document.getElementById(`content-${id}`);
-            const btn = document.getElementById(`btn-${id}`);
-            if (content.classList.contains('content-collapsed')) {
-                content.classList.remove('content-collapsed');
-                btn.textContent = "Thu gọn ↑";
-            } else {
-                content.classList.add('content-collapsed');
-                btn.textContent = "Xem tiếp ↓";
-                content.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }
-        };
 
         window.shareNote = (id) => {
             const baseUrl = window.location.href.split('?')[0];
