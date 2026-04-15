@@ -1,1 +1,196 @@
-<h1>test nội dung </h1>
+<!-- 
+ * Tên file: index.html
+ * Vị trí lưu trong project: Thư mục gốc (root directory - /)
+ * Chức năng cơ bản:
+ * - Làm trang chủ (Hub) để liên kết đến các ứng dụng HTML khác trên GitHub Pages.
+ * - Giao diện thân thiện với điện thoại (Responsive), thao tác chạm (touch) dễ dàng.
+ * - Có chức năng tìm kiếm/lọc ứng dụng trực tiếp (Live search).
+ * - Sử dụng Tailwind CSS cho giao diện và Phosphor Icons cho biểu tượng.
+ -->
+
+ <!DOCTYPE html>
+ <html lang="vi">
+ <head>
+     <meta charset="UTF-8">
+     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+     <title>Danh mục Ứng dụng của tôi</title>
+     
+     <!-- Tailwind CSS để tạo giao diện nhanh và responsive -->
+     <script src="https://cdn.tailwindcss.com"></script>
+     
+     <!-- Phosphor Icons để dùng biểu tượng -->
+     <script src="https://unpkg.com/@phosphor-icons/web"></script>
+ 
+     <style>
+         /* Tùy chỉnh hiệu ứng khi chạm/click trên mobile để có cảm giác phản hồi tốt hơn */
+         .app-card {
+             transition: transform 0.1s ease-in-out, box-shadow 0.1s ease-in-out;
+         }
+         .app-card:active {
+             transform: scale(0.98);
+         }
+         /* Ẩn thanh cuộn nhưng vẫn cuộn được (tùy chọn) */
+         ::-webkit-scrollbar {
+             width: 8px;
+         }
+         ::-webkit-scrollbar-track {
+             background: #f1f5f9; 
+         }
+         ::-webkit-scrollbar-thumb {
+             background: #cbd5e1; 
+             border-radius: 4px;
+         }
+         ::-webkit-scrollbar-thumb:hover {
+             background: #94a3b8; 
+         }
+     </style>
+ </head>
+ <body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col antialiased">
+ 
+     <!-- Header (Phần đầu trang) -->
+     <header class="bg-blue-600 text-white shadow-md sticky top-0 z-10">
+         <div class="max-w-4xl mx-auto px-4 py-5 sm:px-6 flex flex-col gap-4">
+             <div class="flex items-center gap-3">
+                 <i class="ph ph-rocket-launch text-3xl"></i>
+                 <h1 class="text-2xl font-bold tracking-tight">My Apps</h1>
+             </div>
+             
+             <!-- Thanh tìm kiếm -->
+             <div class="relative">
+                 <i class="ph ph-magnifying-glass absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 text-lg"></i>
+                 <input 
+                     type="text" 
+                     id="searchInput" 
+                     placeholder="Tìm kiếm ứng dụng..." 
+                     class="w-full bg-white text-slate-900 rounded-xl pl-10 pr-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-300 shadow-sm transition-all"
+                 >
+             </div>
+         </div>
+     </header>
+ 
+     <!-- Main Content (Nội dung chính) -->
+     <main class="flex-grow max-w-4xl mx-auto w-full px-4 py-6 sm:px-6">
+         
+         <div class="mb-4 flex justify-between items-end">
+             <h2 class="text-lg font-semibold text-slate-700">Tất cả ứng dụng</h2>
+             <span id="appCount" class="text-sm text-slate-500 bg-slate-200 px-2 py-1 rounded-md font-medium">0</span>
+         </div>
+ 
+         <!-- Lưới chứa các ứng dụng (Grid) -->
+         <!-- Chú ý: Đổi tên file trong thuộc tính href="tên-file.html" để link tới app của bạn -->
+         <div id="appList" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+             
+             <!-- Mẫu Ứng dụng 1 -->
+             <a href="app-may-tinh.html" class="app-card block bg-white rounded-xl p-4 shadow-sm border border-slate-100 hover:shadow-md hover:border-blue-200" data-title="Máy tính Calculator">
+                 <div class="flex items-center gap-3">
+                     <div class="bg-blue-100 text-blue-600 w-10 h-10 flex items-center justify-center rounded flex-shrink-0">
+                         <i class="ph ph-calculator text-xl"></i>
+                     </div>
+                     <h3 class="font-bold text-slate-800 text-lg">Máy Tính</h3>
+                 </div>
+             </a>
+ 
+             <!-- Mẫu Ứng dụng 2 -->
+             <a href="app-ghi-chu.html" class="app-card block bg-white rounded-xl p-4 shadow-sm border border-slate-100 hover:shadow-md hover:border-green-200" data-title="Ghi chú Notes Todo">
+                 <div class="flex items-center gap-3">
+                     <div class="bg-green-100 text-green-600 w-10 h-10 flex items-center justify-center rounded flex-shrink-0">
+                         <i class="ph ph-note-pencil text-xl"></i>
+                     </div>
+                     <h3 class="font-bold text-slate-800 text-lg">Ghi Chú (Todo)</h3>
+                 </div>
+             </a>
+ 
+             <!-- Mẫu Ứng dụng 3 -->
+             <a href="app-thoi-tiet.html" class="app-card block bg-white rounded-xl p-4 shadow-sm border border-slate-100 hover:shadow-md hover:border-orange-200" data-title="Thời tiết Weather">
+                 <div class="flex items-center gap-3">
+                     <div class="bg-orange-100 text-orange-600 w-10 h-10 flex items-center justify-center rounded flex-shrink-0">
+                         <i class="ph ph-cloud-sun text-xl"></i>
+                     </div>
+                     <h3 class="font-bold text-slate-800 text-lg">Thời Tiết</h3>
+                 </div>
+             </a>
+ 
+             <!-- Mẫu Ứng dụng 4 -->
+             <a href="app-dong-ho.html" class="app-card block bg-white rounded-xl p-4 shadow-sm border border-slate-100 hover:shadow-md hover:border-purple-200" data-title="Đồng hồ bấm giờ Pomodoro Timer">
+                 <div class="flex items-center gap-3">
+                     <div class="bg-purple-100 text-purple-600 w-10 h-10 flex items-center justify-center rounded flex-shrink-0">
+                         <i class="ph ph-timer text-xl"></i>
+                     </div>
+                     <h3 class="font-bold text-slate-800 text-lg">Đồng Hồ Bấm Giờ</h3>
+                 </div>
+             </a>
+ 
+              <!-- Mẫu Ứng dụng 5 -->
+              <a href="game-ran-san-moi.html" class="app-card block bg-white rounded-xl p-4 shadow-sm border border-slate-100 hover:shadow-md hover:border-red-200" data-title="Trò chơi Rắn săn mồi Snake Game">
+                 <div class="flex items-center gap-3">
+                     <div class="bg-red-100 text-red-600 w-10 h-10 flex items-center justify-center rounded flex-shrink-0">
+                         <i class="ph ph-game-controller text-xl"></i>
+                     </div>
+                     <h3 class="font-bold text-slate-800 text-lg">Rắn Săn Mồi</h3>
+                 </div>
+             </a>
+ 
+         </div>
+ 
+         <!-- Thông báo khi không tìm thấy kết quả -->
+         <div id="noResult" class="hidden text-center py-10">
+             <i class="ph ph-magnifying-glass-minus text-4xl text-slate-300 mb-2"></i>
+             <p class="text-slate-500">Không tìm thấy ứng dụng nào phù hợp.</p>
+         </div>
+ 
+     </main>
+ 
+     <!-- Footer -->
+     <footer class="bg-white border-t border-slate-200 mt-auto py-6 text-center">
+         <p class="text-slate-500 text-sm">
+             &copy; <script>document.write(new Date().getFullYear())</script> My GitHub Pages.
+         </p>
+     </footer>
+ 
+     <!-- Script cho chức năng tìm kiếm -->
+     <script>
+         document.addEventListener('DOMContentLoaded', () => {
+             const searchInput = document.getElementById('searchInput');
+             const appCards = document.querySelectorAll('.app-card');
+             const noResultMsg = document.getElementById('noResult');
+             const appCountDisplay = document.getElementById('appCount');
+             
+             // Cập nhật số lượng ban đầu
+             updateCount();
+ 
+             // Lắng nghe sự kiện gõ phím vào ô tìm kiếm
+             searchInput.addEventListener('input', (e) => {
+                 const searchTerm = e.target.value.toLowerCase().trim();
+                 let visibleCount = 0;
+ 
+                 appCards.forEach(card => {
+                     // Lấy dữ liệu tên từ thuộc tính data-title hoặc text content
+                     const title = card.getAttribute('data-title').toLowerCase();
+                     
+                     if (title.includes(searchTerm)) {
+                         card.style.display = 'block';
+                         visibleCount++;
+                     } else {
+                         card.style.display = 'none';
+                     }
+                 });
+ 
+                 // Hiển thị/ẩn thông báo "không tìm thấy"
+                 if (visibleCount === 0) {
+                     noResultMsg.classList.remove('hidden');
+                 } else {
+                     noResultMsg.classList.add('hidden');
+                 }
+ 
+                 updateCount(visibleCount);
+             });
+ 
+             function updateCount(count = null) {
+                 const finalCount = count !== null ? count : appCards.length;
+                 appCountDisplay.textContent = finalCount + " ứng dụng";
+             }
+         });
+     </script>
+ </body>
+ </html>
+
