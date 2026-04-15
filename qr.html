@@ -1,1 +1,277 @@
+<!DOCTYPE html>
+<!--
+* Tên file: index.html
+* Vị trí lưu: Thư mục gốc (Root directory) của project trên GitHub Pages.
+* Chức năng:
+* - Tạo QR Code từ văn bản hoặc danh sách nhiều dòng.
+* - Hỗ trợ bật/tắt tách dòng để tạo nhiều QR Code riêng biệt cùng lúc.
+* - Sử dụng thư viện qrcode.js tự động tính toán phiên bản QR phù hợp với độ dài dữ liệu (Mức sửa lỗi L).
+* - Kích thước pixel hiển thị tự động co giãn tùy thuộc vào độ dài nội dung.
+* - Lưu trữ cục bộ (localStorage) trạng thái nhập liệu và tùy chọn cấu hình để khôi phục khi quay lại.
+* - Tích hợp PWA meta tags cơ bản để có thể mở như web app (Add to Home Screen).
+* - Nút tải xuống mã QR dưới dạng file ảnh PNG chất lượng cao.
+-->
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Trình Tạo QR Code WebApp</title>
+    
+    <!-- PWA / Web App Capabilities -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#3b82f6">
+    <!-- Inline Manifest (Đơn giản hóa cho 1 file) -->
+    <link rel="manifest" href="data:application/manifest+json;base64,eyJuYW1lIjoiVHLDrG5oIFThuqFvIFFSIENvZGUiLCJzaG9ydF9uYW1lIjoiUVJHZW4iLCJzdGFydF91cmwiOiIuLyIsImRpc3BsYXkiOiJzdGFuZGFsb25lIiwiYmFja2dyb3VuZF9jb2xvciI6IiNmM2Y0ZjYiLCJ0aGVtZV9jb2xvciI6IiMzYjgyZjYiLCJpY29ucyI6W119">
 
+    <!-- Thư viện CSS Tailwind và Font -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Thư viện QRCode.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* Tinh chỉnh scrollbar cho đẹp */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* Chống kéo thả ảnh QR mặc định để trải nghiệm giống app hơn */
+        img { user-select: none; -webkit-user-drag: none; }
+    </style>
+</head>
+<body class="min-h-screen text-gray-800 pb-12">
+
+    <!-- Header -->
+    <header class="bg-blue-600 text-white shadow-md sticky top-0 z-10">
+        <div class="max-w-4xl mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-xl font-bold flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg>
+                Trình Tạo QR Code
+            </h1>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-4xl mx-auto px-4 mt-6">
+        
+        <!-- Khu vực Nhập liệu -->
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
+            <label for="textInput" class="block text-sm font-medium text-gray-700 mb-2">Nhập hoặc dán dữ liệu (Hỗ trợ nhiều dòng):</label>
+            <textarea id="textInput" rows="5" class="w-full border border-gray-300 rounded-xl p-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all resize-y text-base" placeholder="Ví dụ:&#10;https://github.com&#10;Mã số sản phẩm 01&#10;Thông tin liên hệ..."></textarea>
+            
+            <div class="mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <label class="flex items-center gap-3 cursor-pointer group">
+                    <div class="relative">
+                        <input type="checkbox" id="splitLines" class="sr-only">
+                        <div class="block bg-gray-200 w-12 h-7 rounded-full transition-colors group-hover:bg-gray-300 peer-checked:bg-blue-600 toggle-bg"></div>
+                        <div class="dot absolute left-1 top-1 bg-white w-5 h-5 rounded-full transition-transform transform toggle-dot"></div>
+                    </div>
+                    <span class="text-sm font-medium text-gray-700 select-none">Tách mỗi dòng thành 1 QR riêng biệt</span>
+                </label>
+
+                <div class="flex gap-2">
+                    <button id="clearBtn" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg transition-colors">Xóa</button>
+                    <button id="generateBtn" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-sm font-semibold rounded-lg shadow-sm transition-colors flex items-center gap-2">
+                        Tạo QR Code
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trạng thái trống -->
+        <div id="emptyState" class="text-center py-12 text-gray-400">
+            <svg class="mx-auto h-16 w-16 mb-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            <p>Danh sách mã QR sẽ hiển thị tại đây.</p>
+        </div>
+
+        <!-- Khu vực hiển thị QR -->
+        <div id="qrContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+            <!-- QR Cards sẽ được render vào đây bằng JS -->
+        </div>
+
+    </main>
+
+    <style>
+        /* CSS tuỳ chỉnh cho Toggle Switch */
+        #splitLines:checked ~ .toggle-bg { background-color: #2563eb; }
+        #splitLines:checked ~ .toggle-dot { transform: translateX(100%); }
+    </style>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const textInput = document.getElementById('textInput');
+            const splitLines = document.getElementById('splitLines');
+            const qrContainer = document.getElementById('qrContainer');
+            const generateBtn = document.getElementById('generateBtn');
+            const clearBtn = document.getElementById('clearBtn');
+            const emptyState = document.getElementById('emptyState');
+
+            // 1. Khôi phục dữ liệu từ localStorage
+            const loadSavedData = () => {
+                const savedText = localStorage.getItem('qrApp_input');
+                const savedSplitMode = localStorage.getItem('qrApp_split');
+
+                if (savedText) {
+                    textInput.value = savedText;
+                }
+                if (savedSplitMode !== null) {
+                    splitLines.checked = (savedSplitMode === 'true');
+                }
+
+                // Tự động tạo QR nếu có dữ liệu cũ
+                if (textInput.value.trim() !== '') {
+                    generateQRCodes();
+                }
+            };
+
+            // 2. Lưu trạng thái
+            const saveData = () => {
+                localStorage.setItem('qrApp_input', textInput.value);
+                localStorage.setItem('qrApp_split', splitLines.checked);
+            };
+
+            // Sự kiện thay đổi đầu vào
+            textInput.addEventListener('input', () => {
+                saveData();
+            });
+
+            splitLines.addEventListener('change', () => {
+                saveData();
+                generateQRCodes(); // Tự động cập nhật lại giao diện
+            });
+
+            generateBtn.addEventListener('click', generateQRCodes);
+
+            clearBtn.addEventListener('click', () => {
+                textInput.value = '';
+                saveData();
+                qrContainer.innerHTML = '';
+                emptyState.style.display = 'block';
+                textInput.focus();
+            });
+
+            // Hàm xử lý tạo mã
+            function generateQRCodes() {
+                const rawText = textInput.value;
+                if (!rawText.trim()) {
+                    qrContainer.innerHTML = '';
+                    emptyState.style.display = 'block';
+                    return;
+                }
+
+                emptyState.style.display = 'none';
+                qrContainer.innerHTML = ''; // Reset vùng chứa
+
+                let dataItems = [];
+                
+                // Logic bật tắt tách dòng
+                if (splitLines.checked) {
+                    // Tách bằng ký tự xuống dòng, loại bỏ dòng trống
+                    dataItems = rawText.split('\n')
+                                       .map(item => item.trim())
+                                       .filter(item => item.length > 0);
+                } else {
+                    dataItems = [rawText.trim()]; // Gom cả cục
+                }
+
+                // Render từng QR
+                dataItems.forEach((dataStr, index) => {
+                    createQRCard(dataStr, index);
+                });
+            }
+
+            function createQRCard(dataStr, index) {
+                // Tự động điều chỉnh kích thước hiển thị pixel tùy thuộc vào độ dài dữ liệu
+                // QRCode.js tự động tính Version. Ta chỉ cấp kích thước canvas (width/height).
+                let pixelSize = 100; // Mặc định cho dữ liệu ngắn
+                if (dataStr.length > 50) pixelSize = 200;
+                if (dataStr.length > 100) pixelSize = 250;
+                if (dataStr.length > 300) pixelSize = 450;
+                if (dataStr.length > 800) pixelSize = 600; 
+
+                // Tạo thẻ Card wrapper
+                const card = document.createElement('div');
+                card.className = 'bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center hover:shadow-md transition-shadow';
+
+                // Nơi chứa QR
+                const qrArea = document.createElement('div');
+                qrArea.className = 'bg-white rounded-lg p-2 flex justify-center items-center w-full min-h-[220px] overflow-hidden';
+                
+                // Nhãn hiển thị nội dung bên dưới (rút gọn nếu quá dài)
+                const labelInfo = document.createElement('p');
+                labelInfo.className = 'text-sm text-gray-500 mt-4 mb-4 text-center break-all line-clamp-2 w-full';
+                labelInfo.title = dataStr;
+                labelInfo.innerText = dataStr;
+
+                // Nút tải xuống
+                const downloadBtn = document.createElement('button');
+                downloadBtn.className = 'w-full bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold py-2 px-4 rounded-xl transition-colors text-sm flex justify-center items-center gap-2';
+                downloadBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                    Tải PNG
+                `;
+
+                // Gắn thành phần
+                card.appendChild(qrArea);
+                card.appendChild(labelInfo);
+                card.appendChild(downloadBtn);
+                qrContainer.appendChild(card);
+
+                // Khởi tạo QRCode với qrcode.js
+                try {
+                    new QRCode(qrArea, {
+                        text: dataStr,
+                        width: pixelSize,
+                        height: pixelSize,
+                        colorDark : "#000000",
+                        colorLight : "#ffffff",
+                        correctLevel : QRCode.CorrectLevel.L // Mức sửa lỗi L để chứa được nhiều dữ liệu nhất / mật độ thưa nhất
+                    });
+
+                    // Xử lý sự kiện Tải xuống
+                    downloadBtn.addEventListener('click', () => {
+                        downloadQRCode(qrArea, index);
+                    });
+                } catch (e) {
+                    console.error("Lỗi tạo QR:", e);
+                    qrArea.innerHTML = '<span class="text-red-500 text-sm">Dữ liệu quá lớn!</span>';
+                    downloadBtn.disabled = true;
+                    downloadBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+            }
+
+            function downloadQRCode(qrWrapperElement, index) {
+                // qrcode.js sinh ra 1 thẻ canvas và 1 thẻ img.
+                // Thường canvas có sẵn ngay lập tức.
+                const canvas = qrWrapperElement.querySelector('canvas');
+                
+                if (canvas) {
+                    const dataUrl = canvas.toDataURL('image/png');
+                    const link = document.createElement('a');
+                    link.href = dataUrl;
+                    link.download = `QRCode_Export_${index + 1}.png`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                } else {
+                    alert('Chưa thể tải. Vui lòng chờ mã QR render xong.');
+                }
+            }
+
+            // Init App
+            loadSavedData();
+        });
+    </script>
+</body>
+</html>
