@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>HTML5 File Saver</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        textarea { width: 100%; max-width: 500px; height: 150px; margin-bottom: 10px; padding: 10px; }
+        input { padding: 5px; margin-right: 10px; }
+        button { padding: 5px 15px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <h3>Tạo và Lưu File</h2>
+    
+    <textarea id="fileContent" placeholder="Nhập mã code, chuỗi JSON, hoặc văn bản vào đây..."></textarea>
+    <br>
+    
+    <input type="text" id="fileName" value="script.py" placeholder="Tên file (vd: data.json)">
+    <button onclick="saveFile()">Lưu File</button>
+
+    <script>
+        function saveFile() {
+            // Lấy dữ liệu từ giao diện
+            const content = document.getElementById('fileContent').value;
+            const fileName = document.getElementById('fileName').value;
+
+            // 1. Tạo một đối tượng Blob chứa nội dung văn bản
+            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+
+            // 2. Tạo một đường dẫn (URL) tạm thời trỏ đến Blob đó
+            const fileUrl = URL.createObjectURL(blob);
+
+            // 3. Tạo một thẻ <a> ẩn để mô phỏng hành vi click tải xuống
+            const downloadLink = document.createElement('a');
+            downloadLink.href = fileUrl;
+            downloadLink.download = fileName;
+
+            // 4. Thêm thẻ vào DOM, click, và xóa đi ngay lập tức
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+
+            // 5. Giải phóng bộ nhớ của URL tạm
+            URL.revokeObjectURL(fileUrl);
+        }
+    </script>
+
+</body>
+</html>
