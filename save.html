@@ -2,50 +2,312 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>HTML5 File Saver</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mobile File Saver</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Thêm thư viện Phosphor Icons cho các biểu tượng đẹp mắt -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <style>
-        body { font-family: sans-serif; padding: 20px; }
-        textarea { width: 100%; max-width: 500px; height: 150px; margin-bottom: 10px; padding: 10px; }
-        input { padding: 5px; margin-right: 10px; }
-        button { padding: 5px 15px; cursor: pointer; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Gray-100 */
+            overscroll-behavior-y: none; /* Ngăn chặn pull-to-refresh trên mobile */
+        }
+        /* Tùy chỉnh thanh cuộn cho khu vực textarea */
+        textarea::-webkit-scrollbar {
+            width: 6px;
+        }
+        textarea::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        textarea::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 10px;
+        }
+        /* Highlight khi focus */
+        .focus-ring {
+            transition: all 0.2s ease-in-out;
+        }
+        .focus-ring:focus-within {
+            box-shadow: 0 0 0 2px #3b82f6; /* Blue-500 */
+            border-color: #3b82f6;
+        }
     </style>
 </head>
-<body>
+<body class="h-screen w-screen flex flex-col overflow-hidden text-slate-800">
 
-    <h3>Tạo và Lưu File</h2>
-    
-    <textarea id="fileContent" placeholder="Nhập mã code, chuỗi JSON, hoặc văn bản vào đây..."></textarea>
-    <br>
-    
-    <input type="text" id="fileName" value="script.py" placeholder="Tên file (vd: data.json)">
-    <button onclick="saveFile()">Lưu File</button>
+    <!-- Header -->
+    <header class="bg-white shadow-sm px-4 py-3 flex justify-between items-center z-10">
+        <div class="flex items-center gap-2">
+            <i class="ph-fill ph-file-code text-blue-600 text-2xl"></i>
+            <h1 class="font-semibold text-lg text-slate-800 tracking-tight">CodeSaver</h1>
+        </div>
+        
+        <!-- Quick Action: Clear -->
+        <button id="clearBtn" class="text-slate-500 hover:text-red-500 p-2 rounded-full active:bg-red-50 transition-colors" title="Xóa toàn bộ">
+            <i class="ph ph-trash text-xl"></i>
+        </button>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col p-4 gap-4 overflow-hidden relative">
+        
+        <!-- Editor Container -->
+        <div class="flex-1 bg-white rounded-2xl shadow-sm border border-slate-200 flex flex-col focus-ring overflow-hidden relative">
+            
+            <!-- Toolbar within Editor -->
+            <div class="flex justify-between items-center border-b border-slate-100 px-3 py-2 bg-slate-50">
+                <span class="text-xs font-medium text-slate-500 uppercase tracking-wider">Nội dung File</span>
+                
+                <!-- Nút Paste Clipboard -->
+                <button id="pasteBtn" class="flex items-center gap-1 text-sm bg-blue-100 text-blue-700 hover:bg-blue-200 px-3 py-1.5 rounded-lg font-medium transition-colors active:scale-95">
+                    <i class="ph ph-clipboard"></i>
+                    <span>Dán Text</span>
+                </button>
+            </div>
+
+            <textarea id="editor" class="flex-1 w-full p-4 resize-none outline-none text-sm font-mono leading-relaxed text-slate-700 bg-transparent" placeholder="Nhập hoặc dán nội dung văn bản, code (HTML, Python, JSON...) vào đây..."></textarea>
+        </div>
+
+        <!-- File Configuration Area -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 flex flex-col gap-3 shrink-0">
+            
+            <div class="flex gap-2">
+                <!-- Dropdown chọn định dạng nhanh hoặc tùy chỉnh -->
+                <div class="relative focus-ring rounded-xl border border-slate-200 bg-white flex items-center transition-all duration-200">
+                    <select id="fileType" class="appearance-none outline-none bg-transparent py-3 pl-3 pr-8 text-sm font-medium w-24">
+                        <option value="txt">.txt</option>
+                        <option value="html">.html</option>
+                        <option value="php">.php</option>
+                        <option value="json">.json</option>
+                        <option value="py">.py</option>
+                        <option value="js">.js</option>
+                        <option value="css">.css</option>
+                        <option value="md">.md</option>
+                        <option value="sql">.sql</option>
+                        <option value="custom">Khác...</option>
+                    </select>
+                    <div id="selectIcon" class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-slate-500">
+                        <i class="ph ph-caret-down"></i>
+                    </div>
+                    
+                    <!-- Input cho đuôi file tùy chỉnh (ẩn mặc định) -->
+                    <span id="customDot" class="hidden pl-3 text-slate-500 font-bold">.</span>
+                    <input type="text" id="customExt" class="hidden outline-none bg-transparent py-3 pr-2 pl-1 text-sm font-medium w-16 text-blue-600" placeholder="php">
+                    <button id="closeCustomExt" class="hidden pr-2 text-slate-400 hover:text-red-500 active:scale-95" title="Hủy tùy chỉnh"><i class="ph-bold ph-x"></i></button>
+                </div>
+
+                <!-- Input Tên File -->
+                <div class="flex-1 focus-ring rounded-xl border border-slate-200 bg-white flex items-center px-3">
+                    <i class="ph ph-file-text text-slate-400 mr-2"></i>
+                    <input type="text" id="fileName" class="w-full outline-none py-3 text-sm" value="untitled" placeholder="Tên file">
+                </div>
+            </div>
+
+            <!-- Nút Save khổng lồ cho Mobile -->
+            <button id="saveBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-4 font-semibold text-base shadow-md shadow-blue-200 flex items-center justify-center gap-2 transition-all active:scale-[0.98]">
+                <i class="ph-bold ph-download-simple text-xl"></i>
+                <span>Tải xuống File</span>
+            </button>
+        </div>
+    </main>
+
+    <!-- Toast Notification (Thông báo dạng pop-up) -->
+    <div id="toast" class="fixed bottom-24 left-1/2 transform -translate-x-1/2 bg-slate-800 text-white px-4 py-3 rounded-full text-sm font-medium shadow-xl opacity-0 pointer-events-none transition-opacity duration-300 flex items-center gap-2 z-50 whitespace-nowrap">
+        <i id="toastIcon" class="ph-fill ph-check-circle text-green-400 text-lg"></i>
+        <span id="toastMsg">Thành công!</span>
+    </div>
 
     <script>
-        function saveFile() {
-            // Lấy dữ liệu từ giao diện
-            const content = document.getElementById('fileContent').value;
-            const fileName = document.getElementById('fileName').value;
+        document.addEventListener('DOMContentLoaded', () => {
+            const editor = document.getElementById('editor');
+            const pasteBtn = document.getElementById('pasteBtn');
+            const clearBtn = document.getElementById('clearBtn');
+            const fileTypeSelect = document.getElementById('fileType');
+            const customExtInput = document.getElementById('customExt');
+            const customDot = document.getElementById('customDot');
+            const closeCustomExtBtn = document.getElementById('closeCustomExt');
+            const selectIcon = document.getElementById('selectIcon');
+            const fileNameInput = document.getElementById('fileName');
+            const saveBtn = document.getElementById('saveBtn');
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toastMsg');
+            const toastIcon = document.getElementById('toastIcon');
 
-            // 1. Tạo một đối tượng Blob chứa nội dung văn bản
-            const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+            let toastTimeout;
 
-            // 2. Tạo một đường dẫn (URL) tạm thời trỏ đến Blob đó
-            const fileUrl = URL.createObjectURL(blob);
+            // Hàm hiển thị thông báo
+            function showToast(message, type = 'success') {
+                toastMsg.textContent = message;
+                
+                if (type === 'success') {
+                    toastIcon.className = 'ph-fill ph-check-circle text-green-400 text-lg';
+                } else if (type === 'error') {
+                    toastIcon.className = 'ph-fill ph-warning-circle text-red-400 text-lg';
+                }
 
-            // 3. Tạo một thẻ <a> ẩn để mô phỏng hành vi click tải xuống
-            const downloadLink = document.createElement('a');
-            downloadLink.href = fileUrl;
-            downloadLink.download = fileName;
+                toast.classList.remove('opacity-0');
+                toast.classList.add('opacity-100');
 
-            // 4. Thêm thẻ vào DOM, click, và xóa đi ngay lập tức
-            document.body.appendChild(downloadLink);
-            downloadLink.click();
-            document.body.removeChild(downloadLink);
+                clearTimeout(toastTimeout);
+                toastTimeout = setTimeout(() => {
+                    toast.classList.remove('opacity-100');
+                    toast.classList.add('opacity-0');
+                }, 3000);
+            }
 
-            // 5. Giải phóng bộ nhớ của URL tạm
-            URL.revokeObjectURL(fileUrl);
-        }
+            // Logic Dán (Paste) từ Clipboard
+            pasteBtn.addEventListener('click', async () => {
+                try {
+                    // API Clipboard mới nhất (Yêu cầu context an toàn: HTTPS hoặc localhost)
+                    if (navigator.clipboard && navigator.clipboard.readText) {
+                        const text = await navigator.clipboard.readText();
+                        if (text) {
+                            // Chèn text vào vị trí con trỏ hoặc cuối file
+                            const cursorPosition = editor.selectionStart;
+                            const textBefore = editor.value.substring(0, cursorPosition);
+                            const textAfter = editor.value.substring(editor.selectionEnd, editor.value.length);
+                            
+                            editor.value = textBefore + text + textAfter;
+                            
+                            // Đặt lại con trỏ sau đoạn text vừa paste
+                            editor.selectionStart = editor.selectionEnd = cursorPosition + text.length;
+                            editor.focus();
+                            
+                            showToast('Đã dán từ bộ nhớ tạm');
+                        } else {
+                            showToast('Bộ nhớ tạm đang trống', 'error');
+                        }
+                    } else {
+                        // Fallback cho các trình duyệt không hỗ trợ API mới (đôi khi bị hạn chế trên mobile)
+                        showToast('Trình duyệt không hỗ trợ dán tự động. Vui lòng chạm giữ và chọn Dán.', 'error');
+                        editor.focus();
+                    }
+                } catch (err) {
+                    console.error('Lỗi khi truy cập clipboard: ', err);
+                    showToast('Không có quyền truy cập bộ nhớ tạm', 'error');
+                }
+            });
+
+            // Logic Xóa nội dung (Clear)
+            clearBtn.addEventListener('click', () => {
+                if(editor.value.trim() === '') return;
+                
+                // Thay thế alert/confirm bằng Custom Logic (Ở đây đơn giản hóa bằng cách xóa trực tiếp để nhanh gọn trên mobile)
+                editor.value = '';
+                editor.focus();
+                showToast('Đã xóa nội dung');
+            });
+
+            // Logic xử lý khi chọn đuôi file "Khác..." (Tùy chỉnh)
+            fileTypeSelect.addEventListener('change', (e) => {
+                if (e.target.value === 'custom') {
+                    // Ẩn dropdown
+                    fileTypeSelect.classList.add('hidden');
+                    selectIcon.classList.add('hidden');
+                    
+                    // Hiện input tùy chỉnh
+                    customDot.classList.remove('hidden');
+                    customExtInput.classList.remove('hidden');
+                    closeCustomExtBtn.classList.remove('hidden');
+                    
+                    customExtInput.focus();
+                }
+            });
+
+            // Logic đóng nút Tùy chỉnh đuôi file
+            closeCustomExtBtn.addEventListener('click', () => {
+                // Ẩn input tùy chỉnh
+                customDot.classList.add('hidden');
+                customExtInput.classList.add('hidden');
+                closeCustomExtBtn.classList.add('hidden');
+                
+                // Hiện lại dropdown
+                fileTypeSelect.classList.remove('hidden');
+                selectIcon.classList.remove('hidden');
+                
+                fileTypeSelect.value = 'txt'; // Trả về mặc định
+                customExtInput.value = ''; // Xóa nội dung đã nhập
+            });
+
+            // Logic Tự động loại bỏ đuôi file cũ khi người dùng gõ tên
+            fileNameInput.addEventListener('blur', () => {
+                let name = fileNameInput.value.trim();
+                if (!name) name = 'untitled';
+                
+                // Xóa các ký tự đặc biệt không hợp lệ cho tên file
+                name = name.replace(/[<>:"/\\|?*]+/g, '');
+                
+                // Nếu người dùng nhập "data.json", ta giữ "data"
+                const lastDotIndex = name.lastIndexOf('.');
+                if (lastDotIndex !== -1 && lastDotIndex !== 0) {
+                     name = name.substring(0, lastDotIndex);
+                }
+                
+                fileNameInput.value = name;
+            });
+
+            // Logic Lưu File
+            saveBtn.addEventListener('click', () => {
+                const content = editor.value;
+                if (!content) {
+                    showToast('Vui lòng nhập nội dung trước khi lưu', 'error');
+                    editor.focus();
+                    return;
+                }
+
+                // Lấy tên file
+                let baseName = fileNameInput.value.trim() || 'untitled';
+                
+                // Xác định đuôi file từ Select hoặc Input tùy chỉnh
+                let ext = '';
+                if (fileTypeSelect.value === 'custom') {
+                    // Lấy giá trị tự nhập, xóa dấu chấm ở đầu nếu người dùng lỡ nhập (vd: ".env" -> "env")
+                    ext = customExtInput.value.trim().replace(/^\.+/, ''); 
+                    if (!ext) ext = 'txt'; // Mặc định là txt nếu để trống
+                } else {
+                    ext = fileTypeSelect.value;
+                }
+
+                const fullFileName = `${baseName}.${ext}`;
+
+                try {
+                    // Tạo Blob
+                    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                    const fileUrl = URL.createObjectURL(blob);
+
+                    // Tạo thẻ a và trigger download
+                    const downloadLink = document.createElement('a');
+                    downloadLink.href = fileUrl;
+                    downloadLink.download = fullFileName;
+
+                    document.body.appendChild(downloadLink);
+                    downloadLink.click();
+                    document.body.removeChild(downloadLink);
+
+                    URL.revokeObjectURL(fileUrl);
+                    
+                    showToast(`Đã tải xuống: ${fullFileName}`);
+                } catch (error) {
+                    console.error("Lỗi khi lưu file:", error);
+                    showToast('Có lỗi xảy ra khi lưu file', 'error');
+                }
+            });
+            
+            // Xử lý để khi gõ tab trong editor không bị nhảy ra ngoài
+            editor.addEventListener('keydown', function(e) {
+                if (e.key === 'Tab') {
+                    e.preventDefault();
+                    const start = this.selectionStart;
+                    const end = this.selectionEnd;
+                    
+                    // Chèn 2 khoảng trắng thay cho tab
+                    this.value = this.value.substring(0, start) + "  " + this.value.substring(end);
+                    this.selectionStart = this.selectionEnd = start + 2;
+                }
+            });
+        });
     </script>
-
 </body>
 </html>
