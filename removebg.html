@@ -1,0 +1,397 @@
+<!--
+File: index.html
+Vị trí lưu: Thư mục gốc (Root) của dự án
+Chức năng cơ bản:
+- Tách nền ảnh AI (Magic Wand & Eraser) với xem trước và vòng tròn cọ tẩy.
+- Hỗ trợ Zoom ảnh (chuột và nút bấm).
+- [MỚI] Tương thích hoàn toàn với thiết bị di động (Mobile-friendly).
+- [MỚI] Bổ sung Touch Events (cảm ứng) thay vì chỉ dùng Mouse Events.
+- [MỚI] Giao diện Responsive: Tự động thu gọn thành Icon trên màn hình nhỏ.
+-->
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <!-- Khóa zoom mặc định của trình duyệt web mobile để tránh lỗi khi chạm -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI Background Remover - Mobile Pro</title>
+    <style>
+        body {
+            font-family: 'Inter', system-ui, sans-serif;
+            background-color: #f0f2f5;
+            color: #202124;
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            box-sizing: border-box;
+            overflow: hidden; /* Khóa cuộn trang tổng thể */
+        }
+        
+        h1 { font-size: 18px; margin: 0 0 10px 0; color: #1a73e8; text-align: center; }
+        
+        /* Toolbar tối ưu cho thiết bị di động */
+        .toolbar {
+            background: #ffffff;
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 10px;
+            width: 100%;
+            max-width: 800px;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid #e0e0e0;
+            margin-bottom: 10px;
+            z-index: 10;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            min-width: max-content;
+        }
+
+        .divider { width: 1px; height: 24px; background: #e0e0e0; margin: 0 5px; }
+
+        button, .file-upload-label {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        input[type="file"] { display: none; }
+        .file-upload-label { background: #e8f0fe; color: #1a73e8; }
+        
+        .btn-tool { background: #f1f3f4; color: #5f6368; font-size: 18px; padding: 8px; }
+        .btn-tool.active { background: #1a73e8; color: white; }
+        .btn-action { background: #fce8e6; color: #d93025; font-size: 18px; padding: 8px; }
+        .btn-success { background: #e6f4ea; color: #137333; font-size: 18px; padding: 8px; }
+
+        .slider-container {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            flex: 2;
+            min-width: 120px;
+        }
+        .slider-container label { font-size: 11px; font-weight: 700; color: #5f6368; }
+        input[type="range"] { width: 100%; height: 6px; }
+
+        /* Workspace chiếm trọn phần màn hình còn lại */
+        .workspace-wrapper {
+            flex: 1;
+            width: 100%;
+            max-width: 800px;
+            overflow: auto;
+            border-radius: 12px;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
+            border: 2px solid #e0e0e0;
+            background-color: #eee;
+            position: relative;
+            touch-action: none; /* Rất quan trọng: Ngăn trình duyệt cuộn trang khi vuốt trên ảnh */
+        }
+
+        .canvas-container {
+            position: absolute;
+            transform-origin: top left;
+            background-image: 
+                linear-gradient(45deg, #ddd 25%, transparent 25%), 
+                linear-gradient(-45deg, #ddd 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #ddd 75%), 
+                linear-gradient(-45deg, transparent 75%, #ddd 75%);
+            background-size: 16px 16px;
+            background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+            background-color: #fff;
+            display: inline-block; 
+        }
+
+        canvas { display: block; cursor: none; }
+        #previewCanvas { position: absolute; top: 0; left: 0; pointer-events: none; }
+
+        /* Responsive CSS cho điện thoại: Ẩn chữ, chỉ hiện Icon */
+        @media (max-width: 600px) {
+            .btn-text { display: none; }
+            .toolbar { padding: 8px; gap: 5px; justify-content: center; }
+            button, .file-upload-label { padding: 8px 10px; font-size: 18px; }
+            .control-group { justify-content: center; flex: auto; }
+            h1 { display: none; } /* Ẩn tiêu đề trên mobile để có không gian vẽ */
+        }
+    </style>
+</head>
+<body>
+
+    <h1>AI Eraser Mobile</h1>
+
+    <div class="toolbar">
+        <div class="control-group">
+            <label class="file-upload-label">
+                <input type="file" id="uploadInput" accept="image/*">
+                📁 <span class="btn-text">Ảnh</span>
+            </label>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="control-group">
+            <button id="btnWand" class="btn-tool active">🪄</button>
+            <button id="btnEraser" class="btn-tool">🧹</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="slider-container" id="toolConfig">
+            <label id="configLabel">Dung sai: 30</label>
+            <input type="range" id="configSlider" min="1" max="150" value="30">
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="control-group">
+            <button id="btnZoomOut" class="btn-tool">➖</button>
+            <button id="btnZoomIn" class="btn-tool">➕</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="control-group">
+            <button id="resetBtn" class="btn-action">🔄</button>
+            <button id="downloadBtn" class="btn-success">💾</button>
+        </div>
+    </div>
+
+    <div class="workspace-wrapper" id="workspace">
+        <div class="canvas-container" id="canvasContainer">
+            <canvas id="mainCanvas"></canvas>
+            <canvas id="previewCanvas"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const mainCanvas = document.getElementById('mainCanvas');
+        const previewCanvas = document.getElementById('previewCanvas');
+        const mCtx = mainCanvas.getContext('2d', { willReadFrequently: true });
+        const pCtx = previewCanvas.getContext('2d');
+        
+        const uploadInput = document.getElementById('uploadInput');
+        const configSlider = document.getElementById('configSlider');
+        const configLabel = document.getElementById('configLabel');
+        const canvasContainer = document.getElementById('canvasContainer');
+        const workspace = document.getElementById('workspace');
+
+        let originalImg = null;
+        let mode = 'wand'; 
+        let isDrawing = false;
+        let currentZoom = 1;
+
+        // Lưu trữ giá trị config riêng cho từng tool
+        let toolSettings = { wand: 30, eraser: 40 };
+
+        // --- CẬP NHẬT GIAO DIỆN CÔNG CỤ ---
+        function updateToolUI() {
+            document.getElementById('btnWand').classList.toggle('active', mode === 'wand');
+            document.getElementById('btnEraser').classList.toggle('active', mode === 'eraser');
+            
+            if (mode === 'wand') {
+                configSlider.max = 150;
+                configSlider.value = toolSettings.wand;
+                configLabel.innerText = `Dung sai: ${toolSettings.wand}`;
+            } else {
+                configSlider.max = 300;
+                configSlider.value = toolSettings.eraser;
+                configLabel.innerText = `Cỡ tẩy: ${toolSettings.eraser}px`;
+            }
+        }
+
+        document.getElementById('btnWand').onclick = () => { mode = 'wand'; updateToolUI(); };
+        document.getElementById('btnEraser').onclick = () => { mode = 'eraser'; updateToolUI(); };
+
+        configSlider.oninput = (e) => {
+            const val = e.target.value;
+            toolSettings[mode] = parseInt(val);
+            updateToolUI();
+        };
+
+        // --- LOGIC ẢNH & ZOOM ---
+        uploadInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const img = new Image();
+            img.onload = () => {
+                mainCanvas.width = previewCanvas.width = img.width;
+                mainCanvas.height = previewCanvas.height = img.height;
+                canvasContainer.style.width = img.width + 'px';
+                canvasContainer.style.height = img.height + 'px';
+                mCtx.drawImage(img, 0, 0);
+                originalImg = img;
+                
+                // Zoom vừa màn hình di động
+                currentZoom = Math.min((workspace.clientWidth - 20) / img.width, (workspace.clientHeight - 20) / img.height, 1);
+                applyZoom();
+            };
+            img.src = URL.createObjectURL(file);
+        };
+
+        function applyZoom() {
+            canvasContainer.style.transform = `scale(${currentZoom})`;
+        }
+
+        document.getElementById('btnZoomIn').onclick = () => { if (currentZoom < 5) { currentZoom += 0.25; applyZoom(); } };
+        document.getElementById('btnZoomOut').onclick = () => { if (currentZoom > 0.2) { currentZoom -= 0.25; applyZoom(); } };
+
+        // --- XỬ LÝ TỌA ĐỘ CHUỘT & CẢM ỨNG (TOUCH) ---
+        function getCoords(e) {
+            const rect = mainCanvas.getBoundingClientRect();
+            const sx = mainCanvas.width / rect.width;
+            const sy = mainCanvas.height / rect.height;
+            
+            // Hỗ trợ cả Touch (điện thoại) và Click (chuột)
+            let clientX = e.clientX;
+            let clientY = e.clientY;
+            
+            if (e.touches && e.touches.length > 0) {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            }
+
+            return [
+                Math.floor((clientX - rect.left) * sx), 
+                Math.floor((clientY - rect.top) * sy)
+            ];
+        }
+
+        // --- CORE LOGIC: WAND & ERASER ---
+        function floodFill(startX, startY, isPreview) {
+            if (!originalImg) return;
+            const imgData = mCtx.getImageData(0, 0, mainCanvas.width, mainCanvas.height);
+            const data = imgData.data;
+            const w = mainCanvas.width, h = mainCanvas.height;
+            const tol = toolSettings.wand;
+            const startIdx = (startY * w + startX) * 4;
+            const tR = data[startIdx], tG = data[startIdx+1], tB = data[startIdx+2], tA = data[startIdx+3];
+            
+            if (tA === 0) return;
+
+            const visited = new Uint8Array(w * h);
+            const stack = [[startX, startY]];
+            visited[startY * w + startX] = 1;
+            let pData = isPreview ? pCtx.createImageData(w, h) : null;
+
+            while (stack.length > 0) {
+                const [cx, cy] = stack.pop();
+                const idx = (cy * w + cx) * 4;
+                if (isPreview) {
+                    pData.data[idx] = 255; pData.data[idx+3] = 150; // Overlay đỏ
+                } else {
+                    data[idx+3] = 0; // Xóa trong suốt
+                }
+                const neighbors = [[cx-1, cy], [cx+1, cy], [cx, cy-1], [cx, cy+1], [cx-1, cy-1], [cx+1, cy-1], [cx-1, cy+1], [cx+1, cy+1]];
+                for (const [nx, ny] of neighbors) {
+                    if (nx >= 0 && nx < w && ny >= 0 && ny < h && !visited[ny * w + nx]) {
+                        const nIdx = (ny * w + nx) * 4;
+                        if (data[nIdx+3] > 0) {
+                            const diff = Math.sqrt((tR-data[nIdx])**2 + (tG-data[nIdx+1])**2 + (tB-data[nIdx+2])**2);
+                            if (diff <= tol) {
+                                visited[ny * w + nx] = 1;
+                                stack.push([nx, ny]);
+                            }
+                        }
+                    }
+                }
+            }
+            if (isPreview) pCtx.putImageData(pData, 0, 0);
+            else { mCtx.putImageData(imgData, 0, 0); pCtx.clearRect(0,0,w,h); }
+        }
+
+        function drawEraserCursor(x, y) {
+            const size = toolSettings.eraser;
+            pCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+            pCtx.beginPath(); pCtx.arc(x, y, size / 2, 0, Math.PI * 2);
+            pCtx.strokeStyle = 'white'; pCtx.lineWidth = 2; pCtx.stroke();
+            pCtx.beginPath(); pCtx.arc(x, y, size / 2, 0, Math.PI * 2);
+            pCtx.strokeStyle = 'black'; pCtx.lineWidth = 1; pCtx.stroke();
+        }
+
+        function handleInteractStart(e) {
+            const [x, y] = getCoords(e);
+            if (mode === 'wand') floodFill(x, y, false);
+            else isDrawing = true;
+        }
+
+        function handleInteractMove(e) {
+            const [x, y] = getCoords(e);
+            if (mode === 'wand') {
+                pCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+                floodFill(x, y, true);
+            } else if (mode === 'eraser') {
+                drawEraserCursor(x, y);
+                if (isDrawing) {
+                    mCtx.globalCompositeOperation = 'destination-out';
+                    mCtx.beginPath();
+                    mCtx.arc(x, y, toolSettings.eraser / 2, 0, Math.PI * 2);
+                    mCtx.fill();
+                }
+            }
+        }
+
+        function handleInteractEnd() {
+            isDrawing = false;
+        }
+
+        // --- ĐĂNG KÝ SỰ KIỆN CHO CẢ CHUỘT VÀ CẢM ỨNG ---
+        
+        // Mouse Events
+        mainCanvas.addEventListener('mousedown', handleInteractStart);
+        mainCanvas.addEventListener('mousemove', handleInteractMove);
+        window.addEventListener('mouseup', handleInteractEnd);
+        mainCanvas.addEventListener('mouseleave', () => {
+            handleInteractEnd();
+            pCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+        });
+
+        // Touch Events (Rất quan trọng cho Mobile)
+        mainCanvas.addEventListener('touchstart', (e) => {
+            if(e.touches.length === 1) e.preventDefault(); // Chặn cuộn trang khi vẽ 1 ngón
+            handleInteractStart(e);
+        }, { passive: false });
+
+        mainCanvas.addEventListener('touchmove', (e) => {
+            if(e.touches.length === 1) e.preventDefault();
+            handleInteractMove(e);
+        }, { passive: false });
+
+        mainCanvas.addEventListener('touchend', handleInteractEnd);
+        mainCanvas.addEventListener('touchcancel', handleInteractEnd);
+
+        // --- NÚT CHỨC NĂNG ---
+        document.getElementById('resetBtn').onclick = () => {
+            if (originalImg) { mCtx.globalCompositeOperation = 'source-over'; mCtx.drawImage(originalImg, 0, 0); }
+        };
+
+        document.getElementById('downloadBtn').onclick = () => {
+            const link = document.createElement('a');
+            link.download = 'ai_mobile_bg.png';
+            link.href = mainCanvas.toDataURL();
+            link.click();
+        };
+
+        updateToolUI(); // Init UI
+    </script>
+</body>
+</html>
